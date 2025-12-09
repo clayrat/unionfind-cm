@@ -281,7 +281,7 @@ concat-embed-mirror =
       ∙ ap (concat (embed sxy)) (concat-sng-l ∙ fwdbwd)
       ∙ ih
 
--- graph properties
+-- graph/path properties
 
 is-connected-graph : (V → V → 𝒰 ℓe) → 𝒰 (level-of-type V ⊔ ℓe)
 is-connected-graph G = ∀ x y → RPath G x y
@@ -289,3 +289,9 @@ is-connected-graph G = ∀ x y → RPath G x y
 -- ≈ is a forest
 is-circuit-free : (V → V → 𝒰 ℓe) → 𝒰 (level-of-type V ⊔ ℓe)
 is-circuit-free {V} G = (x : V) → (r : RPath G x x) → r ＝ nil
+
+-- reduced path which looks like this after normalization: x ----> z <---- y
+is-cospan : {G : V → V → 𝒰 ℓe} {x y : V}
+          → RPath G x y → 𝒰 (level-of-type V ⊔ ℓe)
+is-cospan {V} {G} {x} {y} r =
+  Σ[ z ꞉ V ] Σ[ f ꞉ Star G x z ] Σ[ b ꞉ Star G y z ] (r ＝ concat (embed f) (mirror b))

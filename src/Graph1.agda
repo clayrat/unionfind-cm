@@ -30,8 +30,8 @@ open Graph1 public
 Edge : Graph1 A → A → A → 𝒰
 Edge g x y = ⌞ g .grf x y ⌟
 
-prop-edge : {g : Graph1 A} → ∀ {x y} → is-prop (Edge g x y)
-prop-edge {g} {x} {y} = g .grf x y .n-Type.carrier-is-tr
+prop-edge : (g : Graph1 A) → ∀ {x y} → is-prop (Edge g x y)
+prop-edge g {x} {y} = g .grf x y .n-Type.carrier-is-tr
 
 Path1 : Graph1 A → A → A → 𝒰
 Path1 = Star ∘ Edge
@@ -45,21 +45,14 @@ is-acyclic = is-noeth ∘ Edge
 prop-paths : Graph1 A → 𝒰
 prop-paths g = ∀ x y → is-prop (Path1 g x y)
 
--- reduced path which looks like this after normalization: x ----> z <---- y
-is-cospan : {g : Graph1 A} {x y : A}
-          → RPath1 g x y
-          → 𝒰
-is-cospan {A} {g} {x} {y} r =
-  Σ[ z ꞉ A ] Σ[ f ꞉ Path1 g x z ] Σ[ b ꞉ Path1 g y z ] (r ＝ RP.concat (embed f) (mirror b))
-
 -- in a unary graph, every reduced path is a cospan
 -- (prop-truncated to avoid fiddling with equations)
 graph1→cospan : {g : Graph1 A} {x y : A}
               → (r : RPath1 g x y)
-              → ∥ is-cospan {g = g} r ∥₁
+              → ∥ is-cospan {G = Edge g} r ∥₁
 graph1→cospan {A} {g} = RP.elim-prop go
   where
-  go : RP.Elim-prop λ {x} {y} q → ∥ is-cospan {g = g} q ∥₁
+  go : RP.Elim-prop λ {x} {y} q → ∥ is-cospan {G = Edge g} q ∥₁
   go .εʳ {x} {y} e =
     ∣ y , ε e , refl , concat-nil-r ⁻¹ ∣₁
   go .◅~ʳ             (fwd exy)       ih =
@@ -75,7 +68,7 @@ graph1→cospan {A} {g} = RP.elim-prop go
            (w , ε y=w     , b , e) →
               Jₚ (λ t et → (etx : Edge g t x) → (gtz : RPath1 g t z)
                          → gtz ＝ RP.concat (embed (ε (et ⁻¹))) (mirror b)
-                         → is-cospan {g = g} (bwd etx ◅~ gtz))
+                         → is-cospan {G = Edge g} (bwd etx ◅~ gtz))
                  (λ etx gtz e' →
                       x , refl , b ◅+ etx
                     ,   ap (bwd etx ◅~_) (e' ∙ concat-nil-l)
@@ -86,12 +79,12 @@ graph1→cospan {A} {g} = RP.elim-prop go
            (w , eyv ◅ fvw , b , e) →
               Jₚ (λ q eq → (eyv : Edge g y q) → (fvw : Path1 g q w)
                          → gyz ＝ RP.concat (embed (eyv ◅ fvw)) (mirror b)
-                         → is-cospan {g = g} (bwd eyx ◅~ gyz))
+                         → is-cospan {G = Edge g} (bwd eyx ◅~ gyz))
                  (λ eyv' fvw' e' →
                           w , fvw' , b
                         ,   ap (bwd eyx ◅~_) e'
                           ∙ ap (λ j → (bwd eyx ◅~ (fwd j ◅~ RP.concat (embed fvw') (mirror b))))
-                               (prop-edge {g = g} eyv' eyx)
+                               (prop-edge g eyv' eyx)
                           ∙ bwdfwd)
                  (g .una eyx eyv) eyv fvw e)
       ih
@@ -111,7 +104,7 @@ acy1→prop-paths {g} acy =
              Jₚ (λ w ew → (ep′ : Edge g x _) → (eq′ : Edge g x w)
                         → (p′ : Path1 g _ y) → (q′ : Path1 g w y)
                         → (ep′ ◅ p′) ＝ (eq′ ◅ q′))
-                (λ ep′ eq′ p′ q′ → ap² _◅_ (prop-edge {g = g} ep′ eq′)
+                (λ ep′ eq′ p′ q′ → ap² _◅_ (prop-edge g ep′ eq′)
                                            (ih _ ep′ y p′ q′))
                 (g .una ep eq) ep eq p q
 
