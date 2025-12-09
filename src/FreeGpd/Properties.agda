@@ -9,7 +9,7 @@ open import Data.Quotient.Set as SetQ renaming ( elim to elimₛ ; elim-prop to 
                                                ; encode to encodeₛ ; decode to decodeₛ ; universal to universalₛ )
 
 open import RPath
-open import FreeGpd.Base
+open import FreeGpd.Base as FG
 open import FreeGpd.Path
 
 private variable
@@ -19,7 +19,7 @@ private variable
   G : V → V → 𝒰 ℓe
 
 vtx-surjective : is-surjective (vtx {G = G})
-vtx-surjective = elim-prop hlevel! λ v → ∣ v , refl ∣₁
+vtx-surjective = FG.elim-prop hlevel! λ v → ∣ v , refl ∣₁
 
 universal : is-groupoid A
           → (FreeGpd G → A)
@@ -29,7 +29,7 @@ universal {A} {V} {G} A-gpd = ≅→≃ $ iso inc back refl (fun-ext (fun-ext �
   inc : (FreeGpd G → A) → Σ[ va ꞉ (V → A) ] ({x y : V} → G x y → va x ＝ va y)
   inc f = f ∘ vtx , ap f ∘ edge
   back : Σ[ va ꞉ (V → A) ] ({x y : V} → G x y → va x ＝ va y) → FreeGpd G → A
-  back = rec A-gpd $ₜ²_
+  back = FG.rec A-gpd $ₜ²_
   se' : (f : FreeGpd G → A) (x : FreeGpd G) → back (inc f) x ＝ f x
   se' f =
     elim-set hlevel! (λ v → refl)
@@ -51,8 +51,8 @@ loop-free≃set : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
               ≃ is-set (FreeGpd G)
 loop-free≃set =
   prop-extₑ!
-    (λ lf → elim-prop {C = λ p → ∀ q → is-prop (p ＝ q)} hlevel!
-               λ vp → elim-prop {C = λ q → is-prop (vtx vp ＝ q)} hlevel!
+    (λ lf → FG.elim-prop {C = λ p → ∀ q → is-prop (p ＝ q)} hlevel!
+               λ vp → FG.elim-prop {C = λ q → is-prop (vtx vp ＝ q)} hlevel!
                  λ vq pq1 pq2 → ∙-cancel′-r (pq2 ⁻¹) pq1 pq2 (lf vp (pq1 ∙ pq2 ⁻¹) ∙ ∙-inv-i pq2 ⁻¹))
     λ sfg x p → sfg (vtx x) (vtx x) p refl
 
@@ -63,9 +63,9 @@ circuit-free =
   Π-cod-≃ λ x →
   Π-ap FreeGpd-≃' λ p →
     prop-extₑ!
-      (λ e → ap (encode x (vtx x)) e ∙ encode-decode {fg = vtx x} nil)
-      (λ e → decode-encode p ⁻¹ ∙ ap (decode x (vtx x)) e)
+      (λ e → ap (encode x) e ∙ encode-decode {fg = vtx x} nil)
+      (λ e → decode-encode p ⁻¹ ∙ ap (decode (vtx x)) e)
 
 @0 is-circuit-free≃set : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-                 → is-circuit-free G ≃ is-set (FreeGpd G)
+                       → is-circuit-free G ≃ is-set (FreeGpd G)
 is-circuit-free≃set = circuit-free ⁻¹ ∙ loop-free≃set

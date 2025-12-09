@@ -2,13 +2,11 @@
 module FreeGpd.Path where
 
 open import Prelude
-open import Data.Star
-open import Data.Flip renaming (rec to recF)
-open import Data.Quotient.Set as SetQ renaming ( elim to elimₛ ; elim-prop to elim-propₛ ; rec to recₛ
-                                               ; encode to encodeₛ ; decode to decodeₛ)
+open import Data.Star as Star
+open import Data.Flip as Flip
 
-open import RPath
-open import FreeGpd.Base
+open import RPath as RP
+open import FreeGpd.Base as FG
 
 private variable
   ℓv ℓe ℓ : Level
@@ -26,82 +24,64 @@ instance opaque
 
 @0 R' : {G : V → V → 𝒰 ℓe}
       → (u : V)
-      → FreeGpd G → Set (level-of-type V ⊔ ℓsuc ℓe)
+      → FreeGpd G → Set (level-of-type V ⊔ ℓe)
 R' {G} u =
-  rec
+  FG.rec
     hlevel!
     (λ v → el! (RPath G u v))
-    (λ e → n-path $ ua (RPath-snoc-equiv {G = G} e)) -- could (should?) be done in the other direction
+    (λ e → n-path $ ua (RPath-snoc-equiv {G = G} (fwd e))) -- could (should?) be done in the other direction
 
 @0 R : {G : V → V → 𝒰 ℓe}
      → (u : V)
-     → FreeGpd G → 𝒰 (level-of-type V ⊔ ℓsuc ℓe)
+     → FreeGpd G → 𝒰 (level-of-type V ⊔ ℓe)
 R u fg = R' u fg .n-Type.carrier
 
-unfold' : {x y : V} → RSTClos G x y → vtx {G = G} x ＝ vtx y
-unfold' = rstc-rec (ap vtx) edge _⁻¹ _∙_
-
-unfold'-◅+f : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-              {x y z : V} {r : RSTClos G x y} {e : G y z}
-            → unfold' (r ◅+f e) ＝ unfold' r ∙ edge e
-unfold'-◅+f {G} {r} {e} =
-  rstc-rec-◅+f {pl = _∙_}
-    (∙-id-o _)
-    (∙-id-i _)
-    (∙-assoc _ _ _)
-    r e
-
-unfold'-◅+b : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-              {x y z : V} {r : RSTClos G x y} {e : G z y}
-            → unfold' (r ◅+b e) ＝ unfold' r ∙ edge e ⁻¹
-unfold'-◅+b {G} {r} {e} =
-  rstc-rec-◅+b {pl = _∙_}
-    (∙-id-o _)
-    (∙-id-i _)
-    (∙-assoc _ _ _)
-    r e
-
-unfold'-eqv : {x y : V} (a b : RSTClos G x y)
-            → a ~ b → unfold' a ＝ unfold' b
-unfold'-eqv a b (eqt eq)           = ap unfold' eq
-unfold'-eqv a b (symt eqv)         = unfold'-eqv b a eqv ⁻¹
-unfold'-eqv a b (transt eqv1 eqv2) = unfold'-eqv a _ eqv1 ∙ unfold'-eqv _ b eqv2
-unfold'-eqv a b (congrf eqv)       = edge _ ◁ unfold'-eqv _ _ eqv
-unfold'-eqv a b (congrb eqv)       = edge _ ⁻¹ ◁ unfold'-eqv _ _ eqv
-unfold'-eqv a b fwdbwd             = ∙-cancel-l (edge _) (unfold' b)
-unfold'-eqv a b bwdfwd             = ∙-cancel-l (edge _ ⁻¹) (unfold' b)
-unfold'-eqv a b (prop eqv eqv2 i)  =
-  trunc (vtx _) (vtx _)
-        (unfold' a) (unfold' b)
-        (unfold'-eqv a b eqv) (unfold'-eqv a b eqv2)
-        i
-
 unfold : {x : V} → (y : V) → RPath G x y → vtx {G = G} x ＝ vtx y
-unfold y = recₛ hlevel! unfold' unfold'-eqv
+unfold {G} y = RP.rec go
+  where
+  go : Rec λ a b → vtx {G = G} a ＝ vtx b
+  go .εʳ = ap vtx
+  go .◅~ʳ (fwd g) _ e = edge g ∙ e
+  go .◅~ʳ (bwd g) _ e = edge g ⁻¹ ∙ e
+  go .bwdfwdʳ gyx _ bxz = ∙-cancel-l (edge gyx) bxz
+  go .fwdbwdʳ gxy _ bxz = ∙-cancel-l (edge gxy ⁻¹) bxz
+  go .truncʳ = hlevel!
 
-unfold-fwdsnoc : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-                 {x y z : V} {e : G y z} {r : RPath G x y}
-               → unfold z (fwdsnoc e r) ＝ unfold y r ∙ edge e
-unfold-fwdsnoc {y} {z} {e} {r} =
-  elim-propₛ
-    {P = λ q → unfold z (fwdsnoc e q) ＝ unfold y q ∙ edge e}
-    hlevel!
-    (λ r → unfold'-◅+f {r = r})
-    r
+unfold-concat : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+                {x y z : V} {rxy : RPath G x y} {ryz : RPath G y z}
+              → unfold z (concat rxy ryz) ＝ unfold y rxy ∙ unfold z ryz
+unfold-concat {G} {z} {rxy} {ryz} = RP.elim-prop go rxy ryz
+  where
+  go : Elim-prop {G = G} λ {x} {y} q → (ryz : RPath G y z)
+                          → unfold z (concat q ryz) ＝ unfold y q ∙ unfold z ryz
+  go .εʳ =
+    Jₚ (λ w ew → (ryz : RPath G w z)
+               → unfold z (concat (ε~ ew) ryz) ＝ unfold w (ε~ ew) ∙ₚ unfold z ryz)
+       λ ryz' →   ap (unfold z) (concat-nil-l {r = ryz'})
+                ∙ ∙-id-o (unfold z ryz') ⁻¹
+  go .◅~ʳ (fwd fxy) {gyz} ih gwz =
+      ap (edge fxy ∙_) (ih gwz)
+    ∙ ∙-assoc (edge fxy) (unfold _ gyz) (unfold z gwz)
+  go .◅~ʳ (bwd fyx) {gyz} ih gwz =
+    ap (edge fyx ⁻¹ ∙_) (ih gwz)
+    ∙ ∙-assoc (edge fyx ⁻¹) (unfold _ gyz) (unfold z gwz)
+  go .truncʳ _ = hlevel!
 
-unfold-bwdsnoc : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-                 {x y z : V} {e : G z y} {r : RPath G x y}
-               → unfold z (bwdsnoc e r) ＝ unfold y r ∙ edge e ⁻¹
-unfold-bwdsnoc {y} {z} {e} {r} =
-  elim-propₛ
-    {P = λ q → unfold z (bwdsnoc e q) ＝ unfold y q ∙ edge e ⁻¹}
-    hlevel!
-    (λ r → unfold'-◅+b {r = r})
-    r
+unfold-fwd-snoc : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+                 {x y z : V} {rxy : RPath G x y} {gyz : G y z}
+               → unfold z (rxy ◅~+ fwd gyz) ＝ unfold y rxy ∙ edge gyz
+unfold-fwd-snoc {G} {z} {rxy} {gyz} =
+  unfold-concat {rxy = rxy} ∙ ap (unfold _ rxy ∙_) (∙-id-i (edge gyz))
+
+unfold-bwd-snoc : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+                 {x y z : V} {rxy : RPath G x y} {gzy : G z y}
+               → unfold z (rxy ◅~+ bwd gzy) ＝ unfold y rxy ∙ edge gzy ⁻¹
+unfold-bwd-snoc {G} {z} {rxy} {gzy} =
+  unfold-concat {rxy = rxy} ∙ ap (unfold _ rxy ∙_) (∙-id-i (edge gzy ⁻¹))
 
 @0 decode : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-          → (x : V) → (fg : FreeGpd G) → R x fg → vtx {G = G} x ＝ fg
-decode {V} {G} x =
+          → {x : V} → (fg : FreeGpd G) → R x fg → vtx {G = G} x ＝ fg
+decode {V} {G} {x} =
   elim-set hlevel! unfold aux
   where
   aux : {y z : V} (e : G y z)
@@ -110,68 +90,70 @@ decode {V} {G} x =
     fun-ext-dep λ {x₀} {x₁} p →
       commutes→square (  ∙-id-o (unfold z x₁)
                        ∙ ap (unfold z)
-                            (from-pathᴾ p ⁻¹ ∙ ua-β (RPath-snoc-equiv e) x₀)
-                       ∙ unfold-fwdsnoc {r = x₀})
+                            (from-pathᴾ p ⁻¹ ∙ ua-β (RPath-snoc-equiv (fwd e)) x₀)
+                       ∙ unfold-fwd-snoc {rxy = x₀})
+
+@0 encode' : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+          → (x : V) → {y : V} {fg : FreeGpd G} → vtx y ＝ fg → RPath G x y → R x fg
+encode' x = subst (R x)
 
 @0 encode : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
-          → (x : V) → (fg : FreeGpd G) → vtx x ＝ fg → R x fg
-encode x _ p = subst (R x) p nil
+          → (x : V) → {fg : FreeGpd G} → vtx x ＝ fg → R x fg
+encode x p = encode' x p nil
+
+@0 encode'-decode-vtx : {x y z : V} (rxy : RPath G x y) (ryz : RPath G y z)
+                      → encode' x (decode (vtx z) ryz) rxy ＝ concat rxy ryz
+encode'-decode-vtx {G} {x} rxy ryz = RP.elim-prop go ryz rxy
+  where
+  go : Elim-prop {G = G} λ {x = y} {y = z} q
+                         → (rxy : RPath G x y) → encode' x (decode (vtx z) q) rxy ＝ concat rxy q
+  go .εʳ {x = y} {y = z} e rxy =
+    Jₚ (λ w ew → encode' x (decode (vtx w) (ε~ ew)) rxy ＝ concat rxy (ε~ ew))
+       (  subst-refl {B = RPath G _} rxy
+        ∙ concat-nil-r ⁻¹)
+       e
+  go .◅~ʳ {x = y} {y = z} {z = w} (fwd fyz) {gyz = gzw} ih rxy =
+      subst-comp (R x) (edge fyz) (unfold _ gzw) rxy
+    ∙ ap (subst (R x) (unfold w gzw))
+         (ua-β (RPath-snoc-equiv (fwd fyz)) rxy)
+    ∙ ih (rxy ◅~+ fwd fyz)
+    ∙ concat-assoc {rwx = rxy}
+    ∙ ap (λ q → concat rxy (fwd fyz ◅~ q)) concat-nil-l
+  go .◅~ʳ {x = y} {y = z} {z = w} (bwd fzy) {gyz = gzw} ih rxy =
+      subst-comp (R x) (edge fzy ⁻¹) (unfold _ gzw) rxy
+    ∙ ap (subst (R x) (unfold w gzw))
+         (ua-β⁻¹ (RPath-snoc-equiv (fwd fzy)) rxy)
+    ∙ ih (rxy ◅~+ bwd fzy)
+    ∙ concat-assoc {rwx = rxy}
+    ∙ ap (λ q → concat rxy (bwd fzy ◅~ q)) concat-nil-l
+  go .truncʳ _ = hlevel!
 
 @0 encode-decode-vtx : {x y : V} (r : RPath G x y)
-                     → encode x (vtx y) (decode x (vtx y) r) ＝ r
-encode-decode-vtx {G} {x} {y} =
-  elim-propₛ
-    {P = λ q → encode x (vtx y) (decode x (vtx y) q) ＝ q}
-    hlevel!
-    λ q → aux refl q ∙ ap ⦋_⦌ (star-cast-l-refl q)
-  where
-  aux : ∀ {a b c}
-      → (w : RSTClos G a b) (q : RSTClos G b c)
-      → subst (R a) (unfold' q) ⦋ w ⦌ ＝ ⦋ w ∙ q ⦌
-  aux     w (ε eq)      =
-    ap ⦋_⦌ (Jₚ (λ z ez → subst (RSTClos _ _) ez w ＝ w ∙ ε ez)
-              (subst-refl {B = RSTClos _ _} w ∙ star-trans-id-r w ⁻¹)
-              eq)
-  aux {a} w (fwd e ◅ q) =
-      subst-comp (R a) (edge e) (unfold' q) ⦋ w ⦌
-    ∙ ap (subst (R a) (unfold' q))
-         (ua-β (RPath-snoc-equiv e) ⦋ w ⦌)
-    ∙ aux (w ◅+f e) q
-    ∙ ap ⦋_⦌ (  star-trans-assoc w (star-sng (fwd e)) q
-             ∙ ap (λ q → w ∙ (fwd e ◅ q))
-                  (star-trans-id-l q))
-  aux {a} w (bwd e ◅ q) =
-      subst-comp (R a) (edge e ⁻¹) (unfold' q) ⦋ w ⦌
-    ∙ ap (subst (R a) (unfold' q))
-         (ua-β⁻¹ (RPath-snoc-equiv e) ⦋ w ⦌)
-    ∙ aux (w ◅+b e) q
-    ∙ ap ⦋_⦌ (  star-trans-assoc w (star-sng (bwd e)) q
-             ∙ ap (λ q → w ∙ (bwd e ◅ q))
-                  (star-trans-id-l q))
+                     → encode x (decode (vtx y) r) ＝ r
+encode-decode-vtx {G} r = encode'-decode-vtx nil r ∙ concat-nil-l
 
 @0 encode-decode : {x : V} {fg : FreeGpd G}
-                   (r : R x fg) → encode x fg (decode x fg r) ＝ r
+                   (r : R x fg) → encode x (decode fg r) ＝ r
 encode-decode {x} {fg} =
- elim-prop
-   {C = λ q → (r : R x q) → encode x q (decode x q r) ＝ r}
+ FG.elim-prop
+   {C = λ q → (r : R x q) → encode x (decode q r) ＝ r}
    hlevel!
    (λ v → encode-decode-vtx)
    fg
 
 @0 decode-encode : {x : V} {fg : FreeGpd G}
-                   (eq : vtx x ＝ fg) → decode x fg (encode x fg eq) ＝ eq
-decode-encode {G} {x} {fg} eq =
-  J! (λ q pq → decode x q (encode x q pq) ＝ pq)
+                   (eq : vtx x ＝ fg) → decode fg (encode x eq) ＝ eq
+decode-encode {G} {x} {fg} =
+  Jₚ (λ v ev → decode v (encode x ev) ＝ ev)
      (ap (unfold x)
          (subst-refl {B = R {G = G} x} {x = vtx x}
                      nil))
-     eq
 
 @0 FreeGpd-≃ : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
             → (x : V) → (fg : FreeGpd G) → vtx {G = G} x ＝ fg ≃ R x fg
 FreeGpd-≃ x fg =
   ≅→≃ $
-  make-iso (encode x fg) (decode x fg) $
+  make-iso (encode x) (decode fg) $
   make-inverses (fun-ext (encode-decode {fg = fg})) (fun-ext decode-encode)
 
 @0 FreeGpd-≃' : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
