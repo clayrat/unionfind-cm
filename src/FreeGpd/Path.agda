@@ -149,13 +149,13 @@ decode-encode {G} {x} {fg} =
          (subst-refl {B = R {G = G} x} {x = vtx x}
                      nil))
 
-@0 FreeGpd-≃ : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+@0 FreeGpd-≃-gen : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
             → (x : V) → (fg : FreeGpd G) → vtx {G = G} x ＝ fg ≃ R x fg
-FreeGpd-≃ x fg =
+FreeGpd-≃-gen x fg =
   ≅→≃ $
   make-iso (encode x) (decode fg) $
   make-inverses (fun-ext (encode-decode {fg = fg})) (fun-ext decode-encode)
 
-@0 FreeGpd-≃' : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
+@0 FreeGpd-≃ : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
               → {x y : V} → vtx {G = G} x ＝ vtx y ≃ RPath G x y
-FreeGpd-≃' {x} {y} = FreeGpd-≃ x (vtx y)
+FreeGpd-≃ {x} {y} = FreeGpd-≃-gen x (vtx y)

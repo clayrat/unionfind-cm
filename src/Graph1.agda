@@ -33,6 +33,9 @@ Edge g x y = ⌞ g .grf x y ⌟
 prop-edge : (g : Graph1 A) → ∀ {x y} → is-prop (Edge g x y)
 prop-edge g {x} {y} = g .grf x y .n-Type.carrier-is-tr
 
+is-terminal-node : Graph1 A → A → 𝒰
+is-terminal-node g x = ∀ {y} → ¬ Edge g x y
+
 Path1 : Graph1 A → A → A → 𝒰
 Path1 = Star ∘ Edge
 
@@ -44,6 +47,11 @@ is-acyclic = is-noeth ∘ Edge
 
 prop-paths : Graph1 A → 𝒰
 prop-paths g = ∀ x y → is-prop (Path1 g x y)
+
+empty1 : is-set A → Graph1 A
+empty1 sa .grf _ _ = ⊥
+empty1 sa .stv     = sa
+empty1 sa .una ex  = absurd ex
 
 -- in a unary graph, every reduced path is a cospan
 -- (prop-truncated to avoid fiddling with equations)
@@ -89,6 +97,20 @@ graph1→cospan {A} {g} = RP.elim-prop go
                  (g .una eyx eyv) eyv fvw e)
       ih
   go .truncʳ r = hlevel!
+
+graph1-terminal : {g : Graph1 A} {x y : A}
+                → is-terminal-node g x
+                → is-terminal-node g y
+                → RPath1 g x y
+                → x ＝ y
+graph1-terminal {g} tx ty r =
+  ∥-∥₁.rec
+    (path-is-of-hlevel 1 (g .stv) _ _)
+    (λ where
+         (w , ε eqx  , ε eqy  , e) → eqx ∙ eqy ⁻¹
+         (w , ε eqx  , b ◅ bs , e) → absurd (ty b)
+         (w , f ◅ fs , bs     , e) → absurd (tx f))
+    (graph1→cospan {g = g} r)
 
 acy1→prop-paths : {g : Graph1 A}
                 → is-acyclic g

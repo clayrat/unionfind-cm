@@ -44,7 +44,7 @@ universal {A} {V} {G} A-gpd = ≅→≃ $ iso inc back refl (fun-ext (fun-ext �
 connected-paths =
   Π-cod-≃ λ x →
   Π-cod-≃ λ y →
-  FreeGpd-≃'
+  FreeGpd-≃
 
 loop-free≃set : {V : 𝒰 ℓ} {G : V → V → 𝒰 ℓe} -- why?
               → ((x : V) → (p : vtx {G = G} x ＝ vtx x) → p ＝ refl)
@@ -61,7 +61,7 @@ loop-free≃set =
                 ≃ is-circuit-free G
 circuit-free =
   Π-cod-≃ λ x →
-  Π-ap FreeGpd-≃' λ p →
+  Π-ap FreeGpd-≃ λ p →
     prop-extₑ!
       (λ e → ap (encode x) e ∙ encode-decode {fg = vtx x} nil)
       (λ e → decode-encode p ⁻¹ ∙ ap (decode (vtx x)) e)
