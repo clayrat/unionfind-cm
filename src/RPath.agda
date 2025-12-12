@@ -12,6 +12,7 @@ private variable
   V : 𝒰 ℓv
   A : 𝒰 ℓ
   G : V → V → 𝒰 ℓe
+  H : A → A → 𝒰 ℓe
 
 data RPath (G : V → V → 𝒰 ℓe) : V → V → 𝒰 (level-of-type V ⊔ ℓe) where
   ε~     : ∀ {x y} → x ＝ y → RPath G x y
@@ -124,6 +125,18 @@ concat {G} {x} {y} {z} = rec go
   go .◅~ʳ f r rr r2 = f ◅~ rr r2
   go .bwdfwdʳ gyx rxz rr = fun-ext λ b → bwdfwd
   go .fwdbwdʳ gxy rxz rr = fun-ext λ b → fwdbwd
+  go .truncʳ = hlevel!
+
+map-hom : (f : V → A)
+        → ({x y : V} → G x y → H (f x) (f y))
+        → ∀ {x y} → RPath G x y → RPath H (f x) (f y)
+map-hom {G} {H} f g = rec go
+  where
+  go : Rec {G = G} (λ a b → RPath H (f a) (f b))
+  go .εʳ e = ε~ (ap f e)
+  go .◅~ʳ x r = flip-map g x ◅~_
+  go .bwdfwdʳ gyx rxz bxz = bwdfwd
+  go .fwdbwdʳ gxy rxz bxz = fwdbwd
   go .truncʳ = hlevel!
 
 -- snoc
