@@ -25,7 +25,8 @@ open import LFSet
 open import LFSet.Membership
 open import LFSet.Discrete
 
-open import FreeGpd
+open import RPath as RP
+open import FreeGpd as FG
 open import Graph1
 
 private variable
@@ -83,6 +84,16 @@ tlink-spec a b g .una (inl (x=a , y=b))   (inl (_ , z=b))     = y=b ∙ z=b ⁻�
 tlink-spec a b s .una (inl (x=a , _))     (inr (x≠a , _ , _)) = absurd (x≠a x=a)
 tlink-spec a b s .una (inr (x≠a , _ , _)) (inl (x=a , _))     = absurd (x≠a x=a)
 tlink-spec a b s .una (inr (_ , _ , e))   (inr (_ , _ , e'))  = s .una e e'
+
+-- tlink is a graph homomorphism when linking terminals
+tlink-spec-graph-hom : {a b : A} {c : Graph1 A}
+                     → is-terminal-node c a
+                     → is-terminal-node c b
+                     → ∀ {x y} → Edge c x y → Edge (tlink-spec a b c) x y
+tlink-spec-graph-hom {c} ta tb {x} {y} e =
+     inr ( contra (λ x=a → subst (λ q → Edge c q y) x=a e) ta
+   , contra (λ x=b → subst (λ q → Edge c q y) x=b e) tb
+   , e)
 
 tlink-spec-uf : (a b : A) → a ≠ b
               → {g : Graph1 A}
@@ -463,3 +474,35 @@ equivalent-reflects ⦃ d ⦄ {c} {x} {y} =
        FreeGpd-≃ $
        ex ∙ e ∙ ey ⁻¹)
     (Reflects-does ⦃ P? = d ⦄)
+
+equate-graph-hom : ⦃ d : is-discrete A ⦄
+                 → {a b : A} {c : CGraph A}
+                 → ∀ {x y} → Edge (to-spec c) x y → Edge (to-spec (equate a b c)) x y
+equate-graph-hom {a} {b} {c} {x} {y} e =
+  let (a' , ta , ea) = terminus c a
+      (b' , tb , eb) = terminus c b
+    in
+  Dec.elim
+     {C = λ q → Edge (to-spec (Dec.rec (λ _ → c) (λ ne → tlink a' b' ne c) q)) x y}
+     (λ a'=b' → e)
+     (λ a'≠b' → tlink←edge {c = c} x y (tlink-spec-graph-hom {c = to-spec c} ta tb e))
+     (a' ≟ b')
+
+@0 equate-equivalent : ⦃ d : is-discrete A ⦄
+                     → {c : CGraph A} {x : A} {y : A}
+                     → vtx {G = Edge (to-spec (equate x y c))} x ＝ vtx y
+equate-equivalent {c} {x} {y} =
+  let (x' , tx , ex) = terminus c x
+      (y' , ty , ey) = terminus c y
+      equate-lift = FG.map-hom id (equate-graph-hom {a = x} {b = y} {c = c})
+    in
+    ap equate-lift ex ⁻¹
+  ∙ so→true! ⦃ equivalent-reflects {c = equate x y c} ⦄
+      (Dec.elim
+       {C = λ q → ⌞ equivalent (Dec.rec (λ _ → c) (λ ne → tlink x' y' ne c) q) x' y' ⌟}
+       (λ cx=cy → true→so! ⦃ equivalent-reflects {c = c} ⦄
+                    (ap vtx cx=cy))
+       (λ cx≠cy → true→so! ⦃ equivalent-reflects {c = tlink x' y' cx≠cy c} ⦄
+                    (edge (tlink←edge {c = c} x' y' (inl (refl , refl)))))
+       (x' ≟ y'))
+  ∙ ap equate-lift ey
