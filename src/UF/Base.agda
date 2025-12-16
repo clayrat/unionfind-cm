@@ -16,7 +16,7 @@ open import Data.Maybe.Correspondences.Unary.Any
 open import Data.List
 open import Data.List.Correspondences.Unary.Unique
 open import Data.Acc
-open import Data.Sum
+open import Data.Sum as Sum
 
 open import KVListU
 open import KVMapU
@@ -47,6 +47,10 @@ record is-UF-graph (g : Graph1 A) : 𝒰₁ where
 
 open is-UF-graph public
 
+∉dom→terminal : {g : Graph1 A} → (iug : is-UF-graph g)
+              → ∀ {x} → x ∉ iug .dom → is-terminal-node g x
+∉dom→terminal iug x∉ = contra (iug .coh) x∉
+
 empty-uf : (sa : is-set A) → is-UF-graph (empty1 sa)
 empty-uf sa .acy x = acc λ y → false!
 empty-uf sa .dom   = []
@@ -56,50 +60,60 @@ empty-uf sa .clo e = absurd e
 is-terminus : {g : Graph1 A} → is-UF-graph g → A → 𝒰
 is-terminus {g} uf x = x ∈ uf .dom × is-terminal-node g x
 
--- set a -> b (assuming they are not equal and terminal)
-tlink-grf : A → A
-          → (A → A → 𝒰)
-          → A → A → 𝒰
-tlink-grf a b g x y = ((x ＝ a) × (y ＝ b)) ⊎ ((x ≠ a) × (x ≠ b) × g x y)
+is-terminus-sub : {g1 g2 : Graph1 A} {x : A}
+                → (iug1 : is-UF-graph g1)
+                → (iug2 : is-UF-graph g2)
+                → (∀ {x y} → Edge g2 x y → Edge g1 x y)
+                → iug1 .dom ⊆ iug2 .dom
+                → is-terminus iug1 x
+                → is-terminus iug2 x
+is-terminus-sub {g1} {g2} iug1 iug2 f s (x∈ , t1) =
+  (s x∈) , is-terminal-node-sub {g1 = g1} {g2 = g2} f t1 
 
-tlink-grf-prop : is-set A
+-- set a -> b
+linknt-grf : A → A
+           → (A → A → 𝒰)
+           → A → A → 𝒰
+
+linknt-grf a b g x y = ((x ＝ a) × (y ＝ b)) ⊎ ((x ≠ a) × g x y)
+
+linknt-grf-prop : is-set A
                → {g : A → A → 𝒰}
                → (∀ {x y} → is-prop (g x y))
-               → {a b x y : A} → is-prop (tlink-grf a b g x y)
-tlink-grf-prop sa sp =
+               → {a b x y : A} → is-prop (linknt-grf a b g x y)
+linknt-grf-prop sa sp =
   disjoint-⊎-is-prop hlevel!
-    (×-is-of-hlevel 1 hlevel! (×-is-of-hlevel 1 hlevel! sp))
+    (×-is-of-hlevel 1 hlevel! sp)
     λ where ((x=a , _) , (x≠a , _)) → x≠a x=a
   where
     instance _ = hlevel-basic-instance 2 sa
 
-tlink-spec : A → A
-           → Graph1 A
-           → Graph1 A
-tlink-spec a b g .grf x y                                     =
-  el (tlink-grf a b (Edge g) x y)
-     (tlink-grf-prop (g .stv) (prop-edge g {x = x} {y = y}))
-tlink-spec a b g .stv                                         = g .stv
-tlink-spec a b g .una (inl (x=a , y=b))   (inl (_ , z=b))     = y=b ∙ z=b ⁻¹
-tlink-spec a b s .una (inl (x=a , _))     (inr (x≠a , _ , _)) = absurd (x≠a x=a)
-tlink-spec a b s .una (inr (x≠a , _ , _)) (inl (x=a , _))     = absurd (x≠a x=a)
-tlink-spec a b s .una (inr (_ , _ , e))   (inr (_ , _ , e'))  = s .una e e'
+linknt-spec : A → A
+            → Graph1 A
+            → Graph1 A
+linknt-spec a b g .grf x y                                =
+  el (linknt-grf a b (Edge g) x y)
+     (linknt-grf-prop (g .stv) (prop-edge g {x = x} {y = y}))
+linknt-spec a b g .stv                                    = g .stv
+linknt-spec a b g .una (inl (x=a , y=b)) (inl (_ , z=b )) = y=b ∙ z=b ⁻¹
+linknt-spec a b s .una (inl (x=a , _))   (inr (x≠a , _ )) = absurd (x≠a x=a)
+linknt-spec a b s .una (inr (x≠a , _))   (inl (x=a , _ )) = absurd (x≠a x=a)
+linknt-spec a b s .una (inr (_   , e))   (inr (_   , e')) = s .una e e'
 
--- tlink is a graph homomorphism when linking terminals
-tlink-spec-graph-hom : {a b : A} {c : Graph1 A}
+-- linknt is a graph homomorphism when linking a terminal
+linknt-spec-graph-hom : {a b : A} {c : Graph1 A}
                      → is-terminal-node c a
-                     → is-terminal-node c b
-                     → ∀ {x y} → Edge c x y → Edge (tlink-spec a b c) x y
-tlink-spec-graph-hom {c} ta tb {x} {y} e =
+                     → ∀ {x y} → Edge c x y → Edge (linknt-spec a b c) x y
+linknt-spec-graph-hom {c} ta {x} {y} e =
      inr ( contra (λ x=a → subst (λ q → Edge c q y) x=a e) ta
-   , contra (λ x=b → subst (λ q → Edge c q y) x=b e) tb
    , e)
 
-tlink-spec-uf : (a b : A) → a ≠ b
+linknt-spec-uf : (a b : A) → a ≠ b
               → {g : Graph1 A}
-              → is-UF-graph g
-              → is-UF-graph (tlink-spec a b g)
-tlink-spec-uf a b a≠b iug .acy =
+              → (iug : is-UF-graph g)
+              → is-terminus iug b
+              → is-UF-graph (linknt-spec a b g)
+linknt-spec-uf a b a≠b {g} iug tb .acy =
   to-ninduction (iug .acy) _
     λ x ih → acc λ y →
        [ (λ where
@@ -107,20 +121,65 @@ tlink-spec-uf a b a≠b iug .acy =
                   [ (λ where
                         (y=a , _) → absurd (a≠b (y=a ⁻¹ ∙ y=b)))
                   , (λ where
-                        (_ , y≠b , _) → absurd (y≠b y=b))
+                        (_ , e) → absurd (tb .snd (subst (λ q → Edge g q z) y=b e)))
                   ]ᵤ)
        , (λ where
-               (_ , _ , e′) → ih y e′)
+               (_ , e′) → ih y e′)
        ]ᵤ
-tlink-spec-uf a b a≠b iug .dom = a ∷ b ∷ iug .dom
-tlink-spec-uf a b a≠b iug .coh (inl (x=a , _))   = hereₛ x=a
-tlink-spec-uf a b a≠b iug .coh (inr (_ , _ , e)) = thereₛ (thereₛ (iug .coh e))
-tlink-spec-uf a b a≠b iug .clo {x} {y} =
+linknt-spec-uf a b a≠b     iug tb .dom = a ∷ iug .dom
+linknt-spec-uf a b a≠b     iug tb .coh (inl (x=a , _)) = hereₛ x=a
+linknt-spec-uf a b a≠b     iug tb .coh (inr (_ , e))   = thereₛ (iug .coh e)
+linknt-spec-uf a b a≠b     iug tb .clo {x} {y} =
   [ (λ where
-        (_ , y=b) → thereₛ (hereₛ y=b))
+        (_ , y=b) → thereₛ (subst (_∈ iug .dom) (y=b ⁻¹) (tb .fst)))
   , (λ where
-        (_ , _ , e′) → thereₛ (thereₛ (iug .clo e′)))
+        (_ , e′) → thereₛ (iug .clo e′))
   ]ᵤ
+
+-- remove all edges from a
+terminate-grf : A
+              → (A → A → 𝒰)
+              → A → A → 𝒰
+terminate-grf a g x y = (x ≠ a) × g x y
+
+terminate-grf-prop : {g : A → A → 𝒰}
+                   → (∀ {x y} → is-prop (g x y))
+                   → {a x y : A} → is-prop (terminate-grf a g x y)
+terminate-grf-prop sp = ×-is-of-hlevel 1 hlevel! sp
+
+terminate-spec : A
+               → Graph1 A
+               → Graph1 A
+terminate-spec a g .grf x y               =
+  el (terminate-grf a (Edge g) x y)
+     (terminate-grf-prop (prop-edge g {x = x} {y = y}) {y = y})
+terminate-spec a g .stv                   = g .stv
+terminate-spec a g .una (_ , e1) (_ , e2) = g .una e1 e2
+
+terminate-spec-graph-sub : {a : A} {c : Graph1 A}
+                         → ∀ {x y} → Edge (terminate-spec a c) x y → Edge c x y 
+terminate-spec-graph-sub (_ , e) = e
+
+terminate-spec-graph-hom : {a : A} {c : Graph1 A}
+                         → is-terminal-node c a
+                         → ∀ {x y} → Edge c x y → Edge (terminate-spec a c) x y
+terminate-spec-graph-hom {c} ta {x} {y} e = 
+    contra (λ x=b → subst (λ q → Edge c q y) x=b e) ta
+  , e
+
+terminate-spec-uf : (a : A) 
+                  → {g : Graph1 A}
+                  → is-UF-graph g
+                  → is-UF-graph (terminate-spec a g)
+terminate-spec-uf a iug .acy = noeth-map (λ _ _ → snd) (iug .acy)
+terminate-spec-uf a iug .dom = a ∷ iug .dom
+terminate-spec-uf a iug .coh (_ , e) = thereₛ (iug .coh e)
+terminate-spec-uf a iug .clo (_ , e) = thereₛ (iug .clo e)
+
+terminate-spec-uf→terminus : {a : A} {g : Graph1 A}
+                           → (iug : is-UF-graph g)
+                           → is-terminus (terminate-spec-uf a iug) a
+terminate-spec-uf→terminus iug = hereₛ refl , (λ where (a≠a , _) → a≠a refl)
 
 -- partition nodes
 
@@ -197,9 +256,6 @@ PMap A = KVMap A (Pnode A)
 pmr : ⦃ d : is-discrete A ⦄ → PMap A → A → A → 𝒰
 pmr p x y = nonterminal y ∈ₘ lookupm p x
 
-oterm : ⦃ d : is-discrete A ⦄ → PMap A → A → 𝒰
-oterm p x = All is-terminal (lookupm p x)
-
 pterm : ⦃ d : is-discrete A ⦄ → PMap A → A → 𝒰
 pterm p x = Any is-terminal (lookupm p x)
 
@@ -245,95 +301,123 @@ to-spec-uf c .dom = from-list (keysm (c .mp))
 to-spec-uf c .coh = ⊆-list ∘ lookup→has {xs = c .mp .kv}
 to-spec-uf c .clo = ⊆-list ∘ c .cl
 
-tlink-fun : ⦃ d : is-discrete A ⦄ → A → A → PMap A → PMap A
-tlink-fun a b = insertm a (nonterminal b) ∘ insertm b (terminal b)
+-- linknt
 
-tlink→edge : ⦃ d : is-discrete A ⦄
-           → {a b : A} {c : CGraph A}
-           → Π[ pmr (tlink-fun a b (c .mp)) ⇒ Edge (tlink-spec a b (to-spec c)) ]
-tlink→edge {a} {b} {c} x y =
-  let g' = insert-kv b (terminal b) (c .mp .kv)
-    in
-    Dec.elim
-     {C = λ q → nonterminal y ∈ₘ (if ⌊ q ⌋
-                                    then just (nonterminal b)
-                                    else lookup-kv g' x)
-              → ((x ＝ a) × (y ＝ b)) ⊎ ((x ≠ a) × (x ≠ b) × pmr (c .mp) x y)}
-     (λ x=a → inl ∘ (x=a ,_)
-            ∘ nonterminal-inj ∘ unhere)
-     (λ x≠a → inr
-            ∘ < (λ _ → x≠a)
-              , subst (λ q → nonterminal y ∈ₘ q → (x ≠ b) × pmr (c .mp) x y)
-                      (kvlist-insert-lookup {xs = c .mp .kv} x ⁻¹)
-                      (Dec.elim
-                         {C = λ q → nonterminal y ∈ₘ (if ⌊ q ⌋
-                                                        then just (terminal b)
-                                                        else lookup-kv (c .mp .kv) x)
-                                  → (x ≠ b) × pmr (c .mp) x y}
-                         (λ x=b en → absurd (terminal≠nonterminal (unhere en ⁻¹)))
-                         (λ x≠b → x≠b ,_)
-                         (x ≟ b)) >)
-     (x ≟ a)
+linknt-fun : ⦃ d : is-discrete A ⦄ → A → A → PMap A → PMap A
+linknt-fun a b = insertm a (nonterminal b)
+
+linknt→edge : ⦃ d : is-discrete A ⦄
+            → {a b : A} {c : CGraph A}
+            → Π[ pmr (linknt-fun a b (c .mp)) ⇒ Edge (linknt-spec a b (to-spec c)) ]
+linknt→edge {a} {b} {c} x y =
+  Dec.elim
+   {C = λ q → nonterminal y ∈ₘ (if ⌊ q ⌋
+                                  then just (nonterminal b)
+                                  else lookup-kv (c .mp .kv) x)
+            → ((x ＝ a) × (y ＝ b)) ⊎ ((x ≠ a) × pmr (c .mp) x y)}
+   (λ x=a → inl ∘ (x=a ,_) ∘ nonterminal-inj ∘ unhere)
+   (λ x≠a → inr ∘ < (λ _ → x≠a) , id >)
+   (x ≟ a)
    ∘ subst (λ q → nonterminal y ∈ₘ q)
-           (kvlist-insert-lookup {xs = g'} x)
+           (kvlist-insert-lookup {xs = c .mp .kv} x)
 
-tlink←edge : ⦃ d : is-discrete A ⦄
-           → {a b : A} {c : CGraph A}
-           → Π[ Edge (tlink-spec a b (to-spec c)) ⇒ pmr (tlink-fun a b (c .mp)) ]
-tlink←edge {a} {b} {c} x y (inl (x=a , y=b))     =
+linknt←edge : ⦃ d : is-discrete A ⦄
+            → {a b : A} {c : CGraph A}
+            → Π[ Edge (linknt-spec a b (to-spec c)) ⇒ pmr (linknt-fun a b (c .mp)) ]
+linknt←edge {a} {b} {c} x y (inl (x=a , y=b))     =
   subst (nonterminal y ∈ₘ_)
-        (kvlist-insert-lookup-= {xs = insert-kv b (terminal b) (c .mp .kv)} x=a ⁻¹) $
+        (kvlist-insert-lookup-= {xs = c .mp .kv} x=a ⁻¹) $
   here (ap nonterminal y=b)
-tlink←edge {a} {b} {c} x y (inr (x≠a , x≠b , e)) =
+linknt←edge {a} {b} {c} x y (inr (x≠a , e)) =
   subst (nonterminal y ∈ₘ_)
-        (kvlist-insert-lookup-≠ {xs = insert-kv b (terminal b) (c .mp .kv)} x≠a ⁻¹) $
-  subst (nonterminal y ∈ₘ_)
-        (kvlist-insert-lookup-≠ {xs = c .mp .kv} x≠b ⁻¹) $
+        (kvlist-insert-lookup-≠ {xs = c .mp .kv} x≠a ⁻¹) $
   e
 
--- TODO tlink≃edge ?
+linknt-keys : ⦃ d : is-discrete A ⦄
+            → {a b : A} {c : CGraph A}
+            → (tb : is-terminus (to-spec-uf c) b)
+            → (a≠b : a ≠ b)
+            → from-list (keysm (linknt-fun a b (c .mp))) ＝ linknt-spec-uf a b a≠b (to-spec-uf c) tb .dom
+linknt-keys {a} {b} {c} tb a≠b =
+  list-≈ (kvlist-upsert-≈ (c .mp .inv))
 
-tlink-keys≈ : ⦃ d : is-discrete A ⦄
-           → {a b : A} {c : CGraph A}
-           → (a≠b : a ≠ b)
-           → keysm (tlink-fun a b (c .mp)) ≈ tlink-spec-uf a b a≠b (to-spec-uf c) .dom
-tlink-keys≈ {a} {b} {c} a≠b =
-  Comp-≈ ⦃ m₂ = Membership-List ⦄ ._∙_
-         {x = keysm (tlink-fun a b (c .mp))}
-         {z = tlink-spec-uf a b a≠b (to-spec-uf c) .dom}
-    (kvlist-upsert-≈ (Is-kvlist-upsert (c .mp .inv)))
-    (Comp-≈ ⦃ m₁ = Membership-List ⦄ ⦃ m₂ = Membership-List ⦄ ._∙_
-            {z = tlink-spec-uf a b a≠b (to-spec-uf c) .dom}
-       (≈-∷ (kvlist-upsert-≈ (c .mp .inv)))
-       (⊆-list , list-⊆))
-
-tlink : ⦃ d : is-discrete A ⦄
-      → (a b : A) → a ≠ b
-      → CGraph A
-      → CGraph A
-tlink a b a≠b c .mp = tlink-fun a b (c .mp)
-tlink a b a≠b c .ac =
+linknt : ⦃ d : is-discrete A ⦄
+       → (a b : A)
+       → a ≠ b
+       → (c : CGraph A)
+       → is-terminus (to-spec-uf c) b
+       → CGraph A
+linknt a b a≠b c tb .mp = linknt-fun a b (c .mp)
+linknt a b a≠b c tb .ac =
   noeth-map
-    (tlink→edge {c = c})
-    (tlink-spec-uf a b a≠b (to-spec-uf c) .acy)
-tlink a b a≠b c .cl =
-    tlink-keys≈ {c = c} a≠b .snd
-  ∘ tlink-spec-uf a b a≠b (to-spec-uf c) .clo
-  ∘ tlink→edge {c = c} _ _
+    (linknt→edge {c = c})
+    (linknt-spec-uf a b a≠b (to-spec-uf c) tb .acy)
+linknt a b a≠b c tb .cl {x} {y} =
+    list-⊆
+  ∘ subst (y ∈_) (linknt-keys {c = c} tb a≠b ⁻¹)
+  ∘ linknt-spec-uf a b a≠b (to-spec-uf c) tb .clo
+  ∘ linknt→edge {c = c} _ _
 
-oterm→term : ⦃ d : is-discrete A ⦄
-           → {c : CGraph A}
-           → Π[ oterm (c .mp) ⇒ is-terminal-node (to-spec c) ]
-oterm→term {c} x otm {y} =
-  Maybe.All→∀∈ otm (nonterminal y)
+-- terminate
 
-term→oterm : ⦃ d : is-discrete A ⦄
-           → {c : CGraph A}
-           → Π[ is-terminal-node (to-spec c) ⇒ oterm (c .mp) ]
-term→oterm {c} x with lookup-kv (c .mp .kv) x
-... | just (nonterminal y) = λ c → absurd (c (here refl))
-... | just (terminal y) = λ _ → just tt
-... | nothing = λ _ → nothing
+terminate-fun : ⦃ d : is-discrete A ⦄ → A → PMap A → PMap A
+terminate-fun a = insertm a (terminal a)
+
+terminate→edge : ⦃ d : is-discrete A ⦄
+               → {a : A} {c : CGraph A}
+               → Π[ pmr (terminate-fun a (c .mp)) ⇒ Edge (terminate-spec a (to-spec c)) ]
+terminate→edge {a} {c} x y =
+  subst (λ q → nonterminal y ∈ₘ q → (x ≠ a) × pmr (c .mp) x y)
+        (kvlist-insert-lookup {xs = c .mp .kv} x ⁻¹) $
+  Dec.elim
+     {C = λ q → nonterminal y ∈ₘ (if ⌊ q ⌋
+                                    then just (terminal a)
+                                    else lookup-kv (c .mp .kv) x)
+              → (x ≠ a) × pmr (c .mp) x y}
+     (λ x=a en → absurd (terminal≠nonterminal (unhere en ⁻¹)))
+     (λ x≠a → x≠a ,_)
+     (x ≟ a)
+
+terminate←edge : ⦃ d : is-discrete A ⦄
+               → {a : A} {c : CGraph A}
+               → Π[ Edge (terminate-spec a (to-spec c)) ⇒ pmr (terminate-fun a (c .mp)) ]
+terminate←edge {a} {c} x y (x≠a , e) =
+  subst (nonterminal y ∈ₘ_)
+        (kvlist-insert-lookup-≠ {xs = c .mp .kv} x≠a ⁻¹)
+        e
+
+terminate-keys : ⦃ d : is-discrete A ⦄
+                → {a : A} {c : CGraph A}
+                → from-list (keysm (terminate-fun a (c .mp))) ＝ terminate-spec-uf a (to-spec-uf c) .dom
+terminate-keys {a} {c} =
+  list-≈ (kvlist-upsert-≈ (c .mp .inv))
+
+terminate : ⦃ d : is-discrete A ⦄
+          → (a : A)
+          → CGraph A
+          → CGraph A
+terminate a c .mp = terminate-fun a (c .mp)
+terminate a c .ac =
+  noeth-map
+    (terminate→edge {c = c})
+    (terminate-spec-uf a (to-spec-uf c) .acy)
+terminate a c .cl {x} {y} =
+    list-⊆
+  ∘ subst (y ∈_) (terminate-keys {c = c} ⁻¹)
+  ∘ terminate-spec-uf a  (to-spec-uf c) .clo
+  ∘ terminate→edge {c = c} _ _
+
+is-terminus-terminate : ⦃ d : is-discrete A ⦄
+                      → (a : A)
+                      → (c : CGraph A)
+                      → is-terminus (to-spec-uf (terminate a c)) a
+is-terminus-terminate a c =
+  is-terminus-sub
+    (terminate-spec-uf a (to-spec-uf c))
+    (to-spec-uf (terminate a c))
+    (λ {x} {y} → terminate→edge {c = c} x y)
+    (subst (_⊆ to-spec-uf (terminate a c) .dom) (terminate-keys {c = c}) id)
+    (terminate-spec-uf→terminus (to-spec-uf c))
 
 pterm→terms : ⦃ d : is-discrete A ⦄
            → {c : CGraph A}
@@ -352,26 +436,16 @@ terms→pterm {c} x (x∈ , ne) with lookup←has (c .mp .inv) (list-⊆ {xs = k
 
 -- TODO pterm≃term
 
+terminus-for : ⦃ d : is-discrete A ⦄
+              → CGraph A → A → A → 𝒰
+terminus-for c x y = is-terminus (to-spec-uf c) y
+                    × (vtx {G = Edge (to-spec c)} y ＝ vtx x)
+
 terminus-ty : ⦃ d : is-discrete A ⦄
             → CGraph A → A → 𝒰
 terminus-ty {A} c x =
-  Σ[ a ꞉ A ] is-terminus (to-spec-uf c) a
-           × (vtx {G = Edge (to-spec c)} a ＝ vtx x)
+  Σ[ a ꞉ A ] terminus-for c x a
 
-oterminus-for : ⦃ d : is-discrete A ⦄
-              → CGraph A → A → A → 𝒰
-oterminus-for c x y = is-terminal-node (to-spec c) y
-                    × (vtx {G = Edge (to-spec c)} y ＝ vtx x)
-
-oterminus-ty : ⦃ d : is-discrete A ⦄
-            → CGraph A → A → 𝒰
-oterminus-ty {A} c x =
-  Σ[ a ꞉ A ] oterminus-for c x a
-
-terminus→oterminus : ⦃ d : is-discrete A ⦄
-                     {c : CGraph A}
-                   → Π[ terminus-ty c ⇒ oterminus-ty c ]
-terminus→oterminus x (a , ta , ea) = a , ta .snd , ea
 
 terminus-loop : ⦃ d : is-discrete A ⦄
                 (c : CGraph A)
@@ -379,39 +453,90 @@ terminus-loop : ⦃ d : is-discrete A ⦄
               → ((y : A) → pmr (c .mp) x y → y ∈ to-spec-uf c .dom → terminus-ty c y)
               → x ∈ to-spec-uf c .dom → terminus-ty c x
 terminus-loop {A} c x ih x∈ =
-  Maybe.elim
-    (λ m → lookupm (c .mp) x ＝ m → terminus-ty c x)
+  Maybe.rec-with-∈
+    (lookupm (c .mp) x)
     (λ n → absurd (lookup→∉ (c .mp .inv) n (list-⊆ x∈)))
-    (λ where
+    λ where
          (nonterminal y) e →
-            let ye = =just→∈ e
-                (z , tz , ez) = ih y ye (⊆-list (c .cl ye))
+            let (z , tz , ez) = ih y e (⊆-list (c .cl e))
               in
-            z , tz , ez ∙ edge ye ⁻¹
+            z , tz , ez ∙ edge e ⁻¹
          (terminal y) e →
              x
            , pterm→terms {c = c} x
-               (subst (λ q → Any is-terminal q) (e ⁻¹) (here tt))
-           , refl)
-    (lookupm (c .mp) x) refl
+               (any-map (λ eq → subst is-terminal eq tt) e)
+           , refl
 
 terminus : ⦃ d : is-discrete A ⦄
          → (c : CGraph A)
-         → (x : A) → oterminus-ty c x
+         → (x : A) → terminus-ty c x ⊎ x ∉ to-spec-uf c .dom
 terminus c x =
-  Maybe.elim
-    (λ m → lookupm (c .mp) x ＝ m → oterminus-ty c x)
-    (λ n → x , (λ {y} e → false! (subst (nonterminal y ∈_) n e)) , refl)
-    (λ where
-         (nonterminal z) eq →
-             terminus→oterminus {c = c} x $
-             to-ninduction (c .ac)
-               (λ z → z ∈ to-spec-uf c .dom → terminus-ty c z)
-               (terminus-loop c)
-               x (⊆-list (lookup→has {xs = c .mp .kv} (=just→∈ eq)))
-         (terminal z) eq →
-            x , (λ {y} e → terminal≠nonterminal (unhere (subst (nonterminal y ∈_) eq e) ⁻¹)) , refl)
-    (lookupm (c .mp) x) refl
+  Maybe.rec-with-∈
+    (lookupm (c .mp) x)
+    (inr ∘ ∉-list ∘ lookup→∉ (c .mp .inv))
+    λ where
+        (nonterminal v) a∈ →
+           inl (to-ninduction (c .ac)
+                  (λ z → z ∈ to-spec-uf c .dom → terminus-ty c z)
+                  (terminus-loop c)
+                  x (⊆-list (lookup→has {xs = c .mp .kv} a∈)))
+        (terminal v)    a∈ →
+           inl ( x
+               , (  ⊆-list (lookup→has {xs = c .mp .kv} a∈)
+                  , (λ {y} y∈ → terminal≠nonterminal (∈ₘ-unique a∈ y∈)))
+               , refl)
+
+terminus-or-out : ⦃ d : is-discrete A ⦄
+                → CGraph A → A → A → 𝒰
+terminus-or-out c x a = terminus-for c x a ⊎ ((a ＝ x) × (x ∉ to-spec-uf c .dom))
+
+terminal-for : ⦃ d : is-discrete A ⦄
+              → CGraph A → A → A → 𝒰
+terminal-for c x y = is-terminal-node (to-spec c) y
+                    × (vtx {G = Edge (to-spec c)} y ＝ vtx x)
+
+terminus-or-out→terminal : ⦃ d : is-discrete A ⦄
+                         → (c : CGraph A) → (x a : A)
+                         → terminus-or-out c x a → terminal-for c x a
+terminus-or-out→terminal c x a (inl ((_ , t) , e)) = t , e
+terminus-or-out→terminal c x a (inr (a=x , x∉)) =
+  ∉dom→terminal (to-spec-uf c) (subst (_∉ to-spec-uf c .dom) (a=x ⁻¹) x∉) , ap vtx a=x
+
+terminus' : ⦃ d : is-discrete A ⦄
+          → (c : CGraph A)
+          → (x : A) → Σ[ a ꞉ A ] (terminus-or-out c x a)
+terminus' c x = [ second inl , (λ n → x , inr (refl , n)) ]ᵤ (terminus c x)
+
+linknt-term : ⦃ d : is-discrete A ⦄
+            → {x : A}
+            → (a b : A)
+            → a ≠ b
+            → (c : CGraph A)
+            → terminus-or-out c x b
+            → CGraph A
+linknt-term a b ne cg (inl (tb , _)) = linknt a b ne cg tb 
+linknt-term a b ne cg (inr _)        = linknt a b ne (terminate b cg) (is-terminus-terminate b cg)
+
+linknt-term-graph-hom : ⦃ d : is-discrete A ⦄
+                 → {z a b : A} {c : CGraph A}
+                 → (ne : a ≠ b)
+                 → is-terminal-node (to-spec c) a
+                 → (st : terminus-or-out c z b)
+                 → ∀ {x y} → Edge (to-spec c) x y → Edge (to-spec (linknt-term a b ne c st)) x y
+linknt-term-graph-hom {z} {a} {b} {c} ne ta (inl (tb , e))   {x} {y} =
+    linknt←edge {c = c} x y
+  ∘ linknt-spec-graph-hom {c = to-spec c} ta
+linknt-term-graph-hom {z} {a} {b} {c} ne ta (inr (b=z , z∉)) {x} {y} =
+    linknt←edge {c = terminate b c} x y
+  ∘ linknt-spec-graph-hom {c = to-spec (terminate b c)}
+       (is-terminal-node-sub {g1 = to-spec c} {g2 = to-spec (terminate b c)}
+         (λ {x = x'} {y = y'} →
+                terminate-spec-graph-sub {c = to-spec c} {y = y'}
+              ∘ terminate→edge {c = c} x' y') ta)
+  ∘ terminate←edge {a = b} {c = c} x y
+  ∘ terminate-spec-graph-hom {c = to-spec c}
+       (∉dom→terminal (to-spec-uf c)
+       (subst (_∉ from-list (keysm (c .mp))) (b=z ⁻¹) z∉))
 
 -- API
 
@@ -425,10 +550,9 @@ unequal .mp = emptym
 unequal .ac x = acc λ y → false!
 unequal .cl = false!
 
--- aka find
 canonize : ⦃ d : is-discrete A ⦄
          → CGraph A → A → A
-canonize cg = fst ∘ terminus cg
+canonize cg = fst ∘ terminus' cg
 
 equivalent : ⦃ d : is-discrete A ⦄
            → CGraph A → A → A → Bool
@@ -438,13 +562,13 @@ equivalent cg a b = canonize cg a =? canonize cg b
 equate : ⦃ d : is-discrete A ⦄
        → A → A → CGraph A → CGraph A
 equate a b cg =
-  let (a' , ta , ea) = terminus cg a
-      (b' , tb , eb) = terminus cg b
+  let a' = canonize cg a
+      (b' , st) = terminus' cg b
     in
   Dec.rec
-    (λ _ → cg)
-    (λ ne → tlink a' b' ne cg)
-    (a' ≟ b')
+     (λ _ → cg)
+     (λ ne → linknt-term a' b' ne cg st)
+     (a' ≟ b')
 
 -- properties
 
@@ -453,12 +577,11 @@ equated-dom : ⦃ d : is-discrete A ⦄
             → equated c ≈ to-spec-uf c .dom
 equated-dom = ⊆-list , list-⊆
 
--- unequal-empty : ⦃ d : is-discrete A ⦄
-
 canonize-term : ⦃ d : is-discrete A ⦄
               → {c : CGraph A} {x : A}
-              → oterminus-for c x (canonize c x)
-canonize-term {c} {x} = snd $ terminus c x
+              → terminal-for c x (canonize c x)
+canonize-term {c} {x} =
+  terminus-or-out→terminal c x (canonize c x) (snd $ terminus' c x)
 
 @0 equivalent-reflects : ⦃ d : is-discrete A ⦄
                        → {c : CGraph A} {x : A} {y : A}
@@ -479,30 +602,36 @@ equate-graph-hom : ⦃ d : is-discrete A ⦄
                  → {a b : A} {c : CGraph A}
                  → ∀ {x y} → Edge (to-spec c) x y → Edge (to-spec (equate a b c)) x y
 equate-graph-hom {a} {b} {c} {x} {y} e =
-  let (a' , ta , ea) = terminus c a
-      (b' , tb , eb) = terminus c b
+  let (a' , ta) = terminus' c a
+      (b' , tb) = terminus' c b
     in
   Dec.elim
-     {C = λ q → Edge (to-spec (Dec.rec (λ _ → c) (λ ne → tlink a' b' ne c) q)) x y}
-     (λ a'=b' → e)
-     (λ a'≠b' → tlink←edge {c = c} x y (tlink-spec-graph-hom {c = to-spec c} ta tb e))
+     {C = λ q → Edge (to-spec (Dec.rec (λ _ → c) (λ ne → linknt-term a' b' ne c tb) q)) x y}
+     (λ _ → e)
+     (λ a'≠b' → linknt-term-graph-hom {c = c} a'≠b' (terminus-or-out→terminal c a a' ta .fst) tb e)
      (a' ≟ b')
 
 @0 equate-equivalent : ⦃ d : is-discrete A ⦄
                      → {c : CGraph A} {x : A} {y : A}
                      → vtx {G = Edge (to-spec (equate x y c))} x ＝ vtx y
 equate-equivalent {c} {x} {y} =
-  let (x' , tx , ex) = terminus c x
-      (y' , ty , ey) = terminus c y
-      equate-lift = FG.map-hom id (equate-graph-hom {a = x} {b = y} {c = c})
+  let (x' , tx) = terminus' c x
+      (tx' , ex) = terminus-or-out→terminal c x x' tx
+      (y' , ty) = terminus' c y
+      (ty' , ey) = terminus-or-out→terminal c y y' ty
+      equate-lift = FG.map-hom {G = Edge (to-spec c)} id (equate-graph-hom {a = x} {b = y} {c = c})
     in
     ap equate-lift ex ⁻¹
   ∙ so→true! ⦃ equivalent-reflects {c = equate x y c} ⦄
       (Dec.elim
-       {C = λ q → ⌞ equivalent (Dec.rec (λ _ → c) (λ ne → tlink x' y' ne c) q) x' y' ⌟}
+       {C = λ q → ⌞ equivalent (Dec.rec (λ _ → c) (λ ne → linknt-term x' y' ne c ty) q) x' y' ⌟}
        (λ cx=cy → true→so! ⦃ equivalent-reflects {c = c} ⦄
                     (ap vtx cx=cy))
-       (λ cx≠cy → true→so! ⦃ equivalent-reflects {c = tlink x' y' cx≠cy c} ⦄
-                    (edge (tlink←edge {c = c} x' y' (inl (refl , refl)))))
+       (λ cx≠cy → true→so! ⦃ equivalent-reflects {c = linknt-term x' y' cx≠cy c ty} ⦄
+                    (edge (Sum.elim
+                            {C = λ q → Edge (to-spec (linknt-term x' y' cx≠cy c q)) x' y'}
+                            (λ a → linknt←edge {c = c} x' y' (inl (refl , refl)))
+                            (λ b → linknt←edge {c = terminate y' c} x' y' (inl (refl , refl)))
+                            ty)))
        (x' ≟ y'))
   ∙ ap equate-lift ey

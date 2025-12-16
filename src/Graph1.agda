@@ -36,6 +36,13 @@ prop-edge g {x} {y} = g .grf x y .n-Type.carrier-is-tr
 is-terminal-node : Graph1 A → A → 𝒰
 is-terminal-node g x = ∀ {y} → ¬ Edge g x y
 
+-- if g2 is a subgraph of g1, and x is terminal in g1, then x is terminal in g2
+is-terminal-node-sub : {g1 g2 : Graph1 A} {x : A}
+                     → (∀ {x y} → Edge g2 x y → Edge g1 x y)
+                     → is-terminal-node g1 x
+                     → is-terminal-node g2 x
+is-terminal-node-sub f tn1 e2 = tn1 (f e2)
+
 Path1 : Graph1 A → A → A → 𝒰
 Path1 = Star ∘ Edge
 

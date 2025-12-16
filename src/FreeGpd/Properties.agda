@@ -5,18 +5,17 @@ open import Prelude
 open import Homotopy.Connectedness
 
 open import Data.Star
-open import Data.Quotient.Set as SetQ renaming ( elim to elimₛ ; elim-prop to elim-propₛ ; rec to recₛ
-                                               ; encode to encodeₛ ; decode to decodeₛ ; universal to universalₛ )
 
 open import RPath
 open import FreeGpd.Base as FG
 open import FreeGpd.Path
 
 private variable
-  ℓv ℓe ℓ : Level
+  ℓv ℓe ℓ ℓ' : Level
   V : 𝒰 ℓv
   A : 𝒰 ℓ
   G : V → V → 𝒰 ℓe
+  H : A → A → 𝒰 ℓ'
 
 vtx-surjective : is-surjective (vtx {G = G})
 vtx-surjective = FG.elim-prop hlevel! λ v → ∣ v , refl ∣₁
@@ -38,6 +37,13 @@ universal {A} {V} {G} A-gpd = ≅→≃ $ iso inc back refl (fun-ext (fun-ext �
                       ∙ ∙-inv-o _)
 
 -- path properties
+
+@0 lift-path-morphism : (f : V → A)
+                      → ({x y : V} → G x y → RPath H (f x) (f y))
+                      → FreeGpd G → FreeGpd H
+lift-path-morphism fv fe =
+  FG.rec trunc (vtx ∘ fv)
+    λ {x} {y} g → FreeGpd-≃ ⁻¹ $ fe g
 
 @0 connected-paths : ((x y : V) → vtx {G = G} x ＝ vtx y)
                    ≃ is-connected-graph G
